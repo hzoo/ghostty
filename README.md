@@ -19,6 +19,61 @@
   </p>
 </p>
 
+## Glossolalia Fork: Quick Test
+
+This fork keeps Ghostty behavior intact except Glossolalia features:
+
+- audio-reactive terminal rendering
+- shader-driven equalizer/glyph effects
+- optional background media playback
+- optional MIDI-driven key mapping
+
+Fast local smoke test (macOS):
+
+```sh
+zig build run -Doptimize=ReleaseFast -- --glossolalia=true
+```
+
+Config test (`~/.config/ghostty/config`):
+
+```ini
+glossolalia = true
+glossolalia-strength = 0.7
+```
+
+Reload config: `cmd+shift+,`
+
+Background media test (OSC):
+
+```sh
+printf '\e]1337;SetBackgroundVideo=https://www.youtube.com/watch?v=jfKfPfyJRdk\a'
+```
+
+Stop media:
+
+```sh
+printf '\e]1337;SetBackgroundVideo=\a'
+```
+
+Extra runtime deps for media URLs:
+
+- `yt-dlp`
+- `ffmpeg`
+- `ffprobe`
+- `mpv`
+
+Build app bundle:
+
+```sh
+zig build install -Demit-macos-app=true -Doptimize=ReleaseFast
+```
+
+Notes for testers:
+
+- No motion: verify audio routing/input permissions first.
+- Motion but no glyph warp: renderer/shader path issue.
+- YouTube 403: set `GHOSTTY_YTDLP_COOKIES_FROM_BROWSER=safari`.
+
 ## About
 
 Ghostty is a terminal emulator that differentiates itself by being

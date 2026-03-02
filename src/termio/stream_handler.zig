@@ -316,6 +316,7 @@ pub const StreamHandler = struct {
             .decaln => try self.decaln(),
             .window_title => try self.windowTitle(value.title),
             .report_pwd => try self.reportPwd(value.url),
+            .background_video_url => self.backgroundVideoUrl(value.url),
             .show_desktop_notification => try self.showDesktopNotification(value.title, value.body),
             .progress_report => self.progressReport(value),
             .start_hyperlink => try self.startHyperlink(value.uri, value.id),
@@ -1198,6 +1199,14 @@ pub const StreamHandler = struct {
         if (!self.seen_title) {
             try self.windowTitle(path);
             self.seen_title = false;
+        }
+    }
+
+    fn backgroundVideoUrl(self: *StreamHandler, url: []const u8) void {
+        if (apprt.surface.Message.WriteReq.init(self.alloc, url)) |req| {
+            self.surfaceMessageWriter(.{ .background_video_url = req });
+        } else |err| {
+            log.warn("error setting background video url err={}", .{err});
         }
     }
 

@@ -976,6 +976,7 @@ typedef void (*ghostty_runtime_write_clipboard_cb)(void*,
                                                    size_t,
                                                    bool);
 typedef void (*ghostty_runtime_close_surface_cb)(void*, bool);
+typedef void (*ghostty_runtime_prompt_background_video_url_cb)(void*);
 typedef bool (*ghostty_runtime_action_cb)(ghostty_app_t,
                                           ghostty_target_s,
                                           ghostty_action_s);
@@ -989,6 +990,8 @@ typedef struct {
   ghostty_runtime_confirm_read_clipboard_cb confirm_read_clipboard_cb;
   ghostty_runtime_write_clipboard_cb write_clipboard_cb;
   ghostty_runtime_close_surface_cb close_surface_cb;
+  ghostty_runtime_prompt_background_video_url_cb
+      prompt_background_video_url_cb;
 } ghostty_runtime_config_s;
 
 // apprt.ipc.Target.Key
@@ -1113,6 +1116,19 @@ void ghostty_surface_split_resize(ghostty_surface_t,
                                   uint16_t);
 void ghostty_surface_split_equalize(ghostty_surface_t);
 bool ghostty_surface_binding_action(ghostty_surface_t, const char*, uintptr_t);
+void ghostty_surface_set_background_video_url(ghostty_surface_t, const char*);
+bool ghostty_surface_has_background_video(ghostty_surface_t);
+bool ghostty_surface_is_background_video_paused(ghostty_surface_t);
+bool ghostty_surface_is_background_video_seek_supported(ghostty_surface_t);
+bool ghostty_surface_set_background_video_paused(ghostty_surface_t, bool);
+bool ghostty_surface_seek_background_video(ghostty_surface_t, int32_t);
+uint32_t ghostty_surface_background_media_queue_count(ghostty_surface_t);
+int32_t ghostty_surface_background_media_queue_index(ghostty_surface_t);
+ghostty_string_s ghostty_surface_background_media_title(ghostty_surface_t);
+ghostty_string_s ghostty_surface_background_media_artist(ghostty_surface_t);
+ghostty_string_s ghostty_surface_background_media_url(ghostty_surface_t);
+bool ghostty_surface_next_background_media_track(ghostty_surface_t);
+bool ghostty_surface_previous_background_media_track(ghostty_surface_t);
 void ghostty_surface_complete_clipboard_request(ghostty_surface_t,
                                                 const char*,
                                                 void*,

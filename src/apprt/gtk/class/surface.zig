@@ -31,6 +31,7 @@ const KeyStateOverlay = @import("key_state_overlay.zig").KeyStateOverlay;
 const ChildExited = @import("surface_child_exited.zig").SurfaceChildExited;
 const ClipboardConfirmationDialog = @import("clipboard_confirmation_dialog.zig").ClipboardConfirmationDialog;
 const TitleDialog = @import("title_dialog.zig").TitleDialog;
+const BackgroundVideoDialog = @import("surface_background_video_dialog.zig").SurfaceBackgroundVideoDialog;
 const Window = @import("window.zig").Window;
 const InspectorWindow = @import("inspector_window.zig").InspectorWindow;
 const i18n = @import("../../../os/i18n.zig");
@@ -1405,6 +1406,23 @@ pub const Surface = extern struct {
             dialog,
             *Self,
             titleDialogSet,
+            self,
+            .{},
+        );
+
+        dialog.present(self.as(gtk.Widget));
+    }
+
+    /// Prompt for a background video URL.
+    pub fn promptBackgroundVideoUrl(self: *Self) void {
+        const dialog = gobject.ext.newInstance(
+            BackgroundVideoDialog,
+            .{},
+        );
+        _ = BackgroundVideoDialog.signals.set.connect(
+            dialog,
+            *Self,
+            backgroundVideoDialogSet,
             self,
             .{},
         );
@@ -3397,6 +3415,23 @@ pub const Surface = extern struct {
     ) callconv(.c) void {
         const title = std.mem.span(title_ptr);
         self.setTitleOverride(if (title.len == 0) null else title);
+    }
+
+    fn backgroundVideoDialogSet(
+        _: *BackgroundVideoDialog,
+        url_ptr: [*:0]const u8,
+        self: *Self,
+    ) callconv(.c) void {
+        const surface = self.core() orelse return;
+        const url = std.mem.span(url_ptr);
+        if (url.len == 0) {
+            surface.stopBackgroundVideo();
+            return;
+        }
+
+        surface.setBackgroundVideoUrl(url) catch |err| {
+            log.warn("unable to set background video url err={}", .{err});
+        };
     }
 
     fn searchStop(_: *SearchOverlay, self: *Self) callconv(.c) void {

@@ -759,6 +759,32 @@ fragment float4 cell_text_fragment(
     }
   }
 }
+
+fragment float4 cell_text_mask_fragment(
+  CellTextVertexOut in [[stage_in]],
+  texture2d<float> textureGrayscale [[texture(0)]],
+  texture2d<float> textureColor [[texture(1)]],
+  constant Uniforms& uniforms [[buffer(1)]]
+) {
+  constexpr sampler textureSampler(
+    coord::pixel,
+    address::clamp_to_edge,
+    filter::nearest
+  );
+
+  float a;
+  switch (in.atlas) {
+    default:
+    case ATLAS_GRAYSCALE:
+      a = textureGrayscale.sample(textureSampler, in.tex_coord).r;
+      break;
+    case ATLAS_COLOR:
+      a = textureColor.sample(textureSampler, in.tex_coord).a;
+      break;
+  }
+
+  return float4(a, a, a, a);
+}
 //-------------------------------------------------------------------
 // Image Shader
 //-------------------------------------------------------------------
@@ -850,4 +876,3 @@ fragment float4 image_fragment(
 
   return rgba;
 }
-

@@ -184,6 +184,7 @@ pub const Handler = struct {
             .kitty_keyboard_query,
             .window_title,
             .report_pwd,
+            .background_video_url,
             .show_desktop_notification,
             .progress_report,
             .clipboard_contents,

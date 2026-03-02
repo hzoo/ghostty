@@ -37,6 +37,7 @@ const Key = enum {
     RequestUpload,
     SetBackgroundImageFile,
     SetBadgeFormat,
+    SetBackgroundVideo,
     SetColors,
     SetKeyLabel,
     SetMark,
@@ -148,6 +149,19 @@ pub fn parse(parser: *Parser, _: ?u8) ?*Command {
             }
             parser.command = .{
                 .report_pwd = .{
+                    .value = value,
+                },
+            };
+            return &parser.command;
+        },
+
+        .SetBackgroundVideo => {
+            const value = value_ orelse {
+                parser.command = .invalid;
+                return null;
+            };
+            parser.command = .{
+                .background_video_url = .{
                     .value = value,
                 },
             };

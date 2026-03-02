@@ -67,6 +67,18 @@ pub const Message = union(enum) {
     /// The macOS display ID has changed for the window.
     macos_display_id: u32,
 
+    /// A new background video frame for the renderer.
+    background_video_frame: BackgroundVideoFrame,
+
+    /// Clear any active background video and restore config background image.
+    background_video_clear,
+
+    pub const BackgroundVideoFrame = struct {
+        width: u32,
+        height: u32,
+        data: []u8,
+    };
+
     pub const SearchMatches = struct {
         arena: ArenaAllocator,
         matches: []const terminal.highlight.Flattened,

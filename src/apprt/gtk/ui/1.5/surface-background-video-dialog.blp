@@ -1,0 +1,20 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $GhosttySurfaceBackgroundVideoDialog: Adw.AlertDialog {
+  heading: _("Set Background Video URL");
+  body: _("Enter a URL (YouTube or direct video). Leave blank to clear.");
+
+  responses [
+    cancel: _("Cancel"),
+    ok: _("OK") suggested,
+  ]
+
+  default-response: "ok";
+  focus-widget: entry;
+
+  extra-child: Entry entry {
+    activates-default: true;
+    placeholder-text: _("https://...");
+  };
+}

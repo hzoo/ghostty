@@ -37,6 +37,14 @@ pub const Uniforms = extern struct {
     cursor_text: [4]f32 align(16),
     selection_background_color: [4]f32 align(16),
     selection_foreground_color: [4]f32 align(16),
+    audio_spectrum: [16][4]f32 align(16),
+    cell_size: [2]f32 align(8),
+    grid_size: [2]f32 align(8),
+    grid_padding: [2]f32 align(8),
+    glossolalia: [4]f32 align(16),
+    glossolalia2: [4]f32 align(16),
+    glossolalia3: [4]f32 align(16),
+    audio_spectrum_raw: [16][4]f32 align(16),
 };
 
 /// The target to load shaders for.
@@ -130,6 +138,55 @@ pub fn loadFromFile(
     };
 
     // Convert to MSL
+    return switch (target) {
+        // Important: using the alloc_gpa here on purpose because this
+        // is the final result that will be returned to the caller.
+        .glsl => try glslFromSpv(alloc_gpa, spirv),
+        .msl => try mslFromSpv(alloc_gpa, spirv),
+    };
+}
+
+/// Load a shader from memory and convert it to the target language.
+pub fn loadFromSource(
+    alloc_gpa: Allocator,
+    src: []const u8,
+    target: Target,
+) ![:0]const u8 {
+    var arena = ArenaAllocator.init(alloc_gpa);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    // Convert to full GLSL
+    const glsl: [:0]const u8 = glsl: {
+        var stream: std.Io.Writer.Allocating = .init(alloc);
+        try glslFromShader(&stream.writer, src);
+        try stream.writer.writeByte(0);
+        break :glsl stream.written()[0 .. stream.written().len - 1 :0];
+    };
+
+    // Convert to SPIR-V
+    const spirv: []const u8 = spirv: {
+        var stream: std.Io.Writer.Allocating = .init(alloc);
+        var errlog: SpirvLog = .{ .alloc = alloc };
+        defer errlog.deinit();
+        spirvFromGlsl(&stream.writer, &errlog, glsl) catch |err| {
+            if (errlog.info.len > 0 or errlog.debug.len > 0) {
+                log.warn("spirv error info={s} debug={s}", .{
+                    errlog.info,
+                    errlog.debug,
+                });
+            }
+
+            return err;
+        };
+
+        // SpirV pointer must be aligned to 4 bytes since we expect
+        // a slice of words.
+        var list: std.ArrayListAligned(u8, .of(u32)) = .empty;
+        try list.appendSlice(alloc, stream.written());
+        break :spirv list.items;
+    };
+
     return switch (target) {
         // Important: using the alloc_gpa here on purpose because this
         // is the final result that will be returned to the caller.

@@ -27,6 +27,7 @@ pub const FontSyntheticStyle = Config.FontSyntheticStyle;
 pub const FontShapingBreak = Config.FontShapingBreak;
 pub const FontStyle = Config.FontStyle;
 pub const FreetypeLoadFlags = Config.FreetypeLoadFlags;
+pub const GlossolaliaMode = Config.GlossolaliaMode;
 pub const Keybinds = Config.Keybinds;
 pub const MouseShiftCapture = Config.MouseShiftCapture;
 pub const MouseScrollMultiplier = Config.MouseScrollMultiplier;
