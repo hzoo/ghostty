@@ -2,6 +2,17 @@
 
 A file for [guiding coding agents](https://agents.md/).
 
+## Project Theory
+
+Glossolalia is a fork-shaped product, not a second terminal emulator.
+Keep Ghostty as the moving engine. Keep Glossolalia as a thin, explicit layer:
+
+- Product identity lives in one place. Name, bundle IDs, updater feeds, release URLs, icons.
+- Fork behavior lands in new files first. Touch upstream files only to add narrow hooks.
+- Rebase cost is a product metric. Prefer patch stacks over monolith commits.
+- Upstream churn zones are radioactive: renderer core, config parsing, app delegates, build/release files.
+- If a change needs wide edits across upstream-heavy files, stop and redesign the seam.
+
 ## Commands
 
 - **Build:** `zig build`

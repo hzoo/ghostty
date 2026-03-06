@@ -48,6 +48,20 @@
 	<string></string>
 	<key>GhosttyCommit</key>
 	<string></string>
+	<key>GlossolaliaCommitURLTemplate</key>
+	<string>$(GLOSSOLALIA_COMMIT_URL_TEMPLATE)</string>
+	<key>GlossolaliaCompareURLTemplate</key>
+	<string>$(GLOSSOLALIA_COMPARE_URL_TEMPLATE)</string>
+	<key>GlossolaliaDefaultsSuiteName</key>
+	<string>$(GLOSSOLALIA_DEFAULTS_SUITE_NAME)</string>
+	<key>GlossolaliaNotificationNamespace</key>
+	<string>$(GLOSSOLALIA_NOTIFICATION_NAMESPACE)</string>
+	<key>GlossolaliaReleaseNotesURLTemplate</key>
+	<string>$(GLOSSOLALIA_RELEASE_NOTES_URL_TEMPLATE)</string>
+	<key>GlossolaliaUpdateStableFeedURL</key>
+	<string>$(GLOSSOLALIA_UPDATE_STABLE_FEED_URL)</string>
+	<key>GlossolaliaUpdateTipFeedURL</key>
+	<string>$(GLOSSOLALIA_UPDATE_TIP_FEED_URL)</string>
 	<key>LSEnvironment</key>
 	<dict>
 		<key>GHOSTTY_MAC_LAUNCH_SOURCE</key>
@@ -110,9 +124,9 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.mitchellh.ghosttySurfaceId</string>
+			<string>$(GLOSSOLALIA_SURFACE_UTI)</string>
 			<key>UTTypeDescription</key>
-			<string>Ghostty Surface Identifier</string>
+			<string>$(GLOSSOLALIA_APP_DISPLAY_NAME) Surface Identifier</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>

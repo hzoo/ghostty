@@ -1,0 +1,33 @@
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 13 * * 1"
+
+name: Fork Rebase Check
+
+jobs:
+  rebase-check:
+    runs-on: ubuntu-latest
+    env:
+      FORK_BRANCH: glossolalia
+      UPSTREAM_REPO: https://github.com/ghostty-org/ghostty.git
+      UPSTREAM_BRANCH: main
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ env.FORK_BRANCH }}
+
+      - name: Add upstream remote
+        run: git remote add upstream "$UPSTREAM_REPO"
+
+      - name: Fetch upstream
+        run: git fetch upstream "$UPSTREAM_BRANCH"
+
+      - name: Rebase check
+        run: |
+          git checkout -b rebase-check
+          git rebase "upstream/$UPSTREAM_BRANCH"
+
+      - name: Show resulting head
+        run: git log --oneline -1
