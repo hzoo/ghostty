@@ -41,6 +41,48 @@ This makes conflict repair local and agent-friendly.
 For the concrete migration from the current monolith commit to that stack,
 see `REBASE_PLAN.md`.
 
+## Daily Workflow
+
+This structure is meant to keep change easy, not bureaucratic.
+
+Normal feature flow:
+
+1. branch from `glossolalia`
+2. make the change on a topic branch
+3. keep commits scoped by concern
+4. land the topic branch back onto `glossolalia`
+5. delete the topic branch when done
+
+Suggested branch names:
+
+- human work: `feature/<name>` or `fix/<name>`
+- agent work: `codex/<name>`
+
+Rules:
+
+- `glossolalia` is not a scratchpad. Keep experiments and half-finished ideas on topic branches.
+- Messy WIP is allowed on topic branches. Clean history only before landing.
+- Small hotfix directly on `glossolalia` is acceptable only if it is truly one concern, low risk, and faster than making a topic branch.
+- If a feature grows across config, renderer, platform glue, and release logic, split it before landing.
+- If only one platform is shipping, avoid touching the other platform unless the API shape requires it.
+- Default landing path is topic branch -> clean commits -> `glossolalia`.
+- Default salvage path for messy work is cherry-pick the good commits, not merge the whole branch.
+
+Landing options:
+
+- rebase the topic branch onto `glossolalia`, then fast-forward `glossolalia`
+- or cherry-pick clean commits from the topic branch onto `glossolalia`
+
+Prefer cherry-pick when the topic branch contains messy exploration you do not want in ship history.
+
+## Non-Negotiables
+
+- Do not use `glossolalia` as a long-running personal work branch.
+- Do not force unrelated work into one commit to "keep history small".
+- Do not let branch cleanup wait until the next upstream rebase.
+- Do not widen edits in upstream churn zones when a hook or helper file would do.
+- Do not postpone rebases until conflict context is cold.
+
 ## Rebase Loop
 
 Use `scripts/fork-sync.sh` for local rebases:
@@ -56,6 +98,24 @@ That script:
 - rebases `glossolalia` onto it
 
 Use `.github/workflows/fork-rebase-check.yml` to catch breakage on a schedule.
+
+Recommended local git config:
+
+```sh
+git config rerere.enabled true
+git config rebase.autoStash true
+```
+
+Human rule:
+
+- keep making whatever changes you want on topic branches
+- only make `glossolalia` pay the rebase cost for finished, scoped work
+
+Practical cadence:
+
+- rebase `glossolalia` after meaningful upstream Ghostty movement
+- if actively building, do not let `glossolalia` drift for more than about a week
+- if a topic branch lives too long, rebase it or cherry-pick the good commits out
 
 ## Release Cutover
 
