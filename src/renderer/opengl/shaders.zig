@@ -26,6 +26,13 @@ const pipeline_descs: []const struct { [:0]const u8, PipelineDescription } =
             .step_fn = .per_instance,
             .blending_enabled = true,
         } },
+        .{ "cell_text_mask", .{
+            .vertex_attributes = CellText,
+            .vertex_fn = loadShaderCode("../shaders/glsl/cell_text.v.glsl"),
+            .fragment_fn = loadShaderCode("../shaders/glsl/cell_text_mask.f.glsl"),
+            .step_fn = .per_instance,
+            .blending_enabled = true,
+        } },
         .{ "image", .{
             .vertex_attributes = Image,
             .vertex_fn = loadShaderCode("../shaders/glsl/image.v.glsl"),

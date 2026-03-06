@@ -888,6 +888,27 @@ pub const Image = union(enum) {
         // converts in place and is idempotent.
         try self.prepForUpload(alloc);
 
+        // Fast path for replace-state uploads where the texture dimensions
+        // are unchanged. This avoids per-frame texture reallocation churn.
+        if (self.* == .replace) {
+            const replace = self.replace;
+            if (replace.texture.width == @as(usize, replace.pending.width) and
+                replace.texture.height == @as(usize, replace.pending.height))
+            {
+                replace.texture.replaceRegion(
+                    0,
+                    0,
+                    replace.texture.width,
+                    replace.texture.height,
+                    replace.pending.dataSlice(),
+                ) catch return error.UploadFailed;
+
+                alloc.free(replace.pending.dataSlice());
+                self.* = .{ .ready = replace.texture };
+                return;
+            }
+        }
+
         // Get our pending info
         const p = self.getPending().?;
 
