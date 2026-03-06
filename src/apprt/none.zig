@@ -16,4 +16,8 @@ pub const App = struct {
         return false;
     }
 };
-pub const Surface = struct {};
+pub const Surface = struct {
+    pub fn promptBackgroundVideoUrl(_: *Surface) bool {
+        return false;
+    }
+};
