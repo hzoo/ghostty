@@ -1,0 +1,26 @@
+// Safe defaults for local development. Release automation can override these
+// build settings at xcodebuild invocation time without touching the project.
+
+GLOSSOLALIA_APP_PRODUCT_NAME = Ghostty
+GLOSSOLALIA_APP_DISPLAY_NAME = Ghostty
+GLOSSOLALIA_DEBUG_APP_DISPLAY_NAME = Ghostty[DEBUG]
+GLOSSOLALIA_APP_ICON_NAME = Ghostty
+GLOSSOLALIA_EXECUTABLE_NAME = ghostty
+GLOSSOLALIA_BUNDLE_ID = com.mitchellh.ghostty
+GLOSSOLALIA_DEBUG_BUNDLE_ID = $(GLOSSOLALIA_BUNDLE_ID).debug
+GLOSSOLALIA_DOCK_TILE_PRODUCT_NAME = DockTilePlugin
+GLOSSOLALIA_DOCK_TILE_DISPLAY_NAME = $(GLOSSOLALIA_APP_DISPLAY_NAME) Dock Tile Plugin
+GLOSSOLALIA_DOCK_TILE_BUNDLE_ID = $(GLOSSOLALIA_BUNDLE_ID)-dock-tile
+GLOSSOLALIA_MARKETING_VERSION = 0.1
+
+GLOSSOLALIA_NOTIFICATION_NAMESPACE = $(GLOSSOLALIA_BUNDLE_ID)
+GLOSSOLALIA_DEFAULTS_SUITE_NAME = $(GLOSSOLALIA_BUNDLE_ID)
+GLOSSOLALIA_SURFACE_UTI = $(GLOSSOLALIA_BUNDLE_ID).surface-id
+
+GLOSSOLALIA_RELEASE_NOTES_URL_TEMPLATE = https://ghostty.org/docs/install/release-notes/{version-dash}
+GLOSSOLALIA_COMPARE_URL_TEMPLATE = https://github.com/ghostty-org/ghostty/compare/{current}...{new}
+GLOSSOLALIA_COMMIT_URL_TEMPLATE = https://github.com/ghostty-org/ghostty/commit/{new}
+GLOSSOLALIA_UPDATE_STABLE_FEED_URL = https://release.files.ghostty.org/appcast.xml
+GLOSSOLALIA_UPDATE_TIP_FEED_URL = https://tip.files.ghostty.dev/appcast.xml
+
+GLOSSOLALIA_PERMISSION_SUBJECT = A program running within $(GLOSSOLALIA_APP_DISPLAY_NAME)
