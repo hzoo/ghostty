@@ -21,6 +21,13 @@ extension Ghostty {
         /// Optional delegate
         weak var delegate: GhosttyAppDelegate?
 
+        #if os(macOS)
+        private enum MidiRuntimeState: Equatable {
+            case off
+            case on(scale: MIDIScale)
+        }
+        #endif
+
         /// The readiness value of the state.
         @Published var readiness: Readiness = .loading
 
@@ -39,6 +46,12 @@ extension Ghostty {
                 ghostty_app_free(old)
             }
         }
+
+        /// MIDI output for glossolalia keystroke-to-note mapping
+        var midi: GlossaliaMIDI?
+        #if os(macOS)
+        private var midiRuntimeState: MidiRuntimeState = .off
+        #endif
 
         /// True if we need to confirm before quitting.
         var needsConfirmQuit: Bool {
@@ -66,7 +79,8 @@ extension Ghostty {
                 confirm_read_clipboard_cb: { userdata, str, state, request in App.confirmReadClipboard(userdata, string: str, state: state, request: request ) },
                 write_clipboard_cb: { userdata, loc, content, len, confirm in
                     App.writeClipboard(userdata, location: loc, content: content, len: len, confirm: confirm) },
-                close_surface_cb: { userdata, processAlive in App.closeSurface(userdata, processAlive: processAlive) }
+                close_surface_cb: { userdata, processAlive in App.closeSurface(userdata, processAlive: processAlive) },
+                prompt_background_video_url_cb: { userdata in App.promptBackgroundVideoURL(userdata) }
             )
 
             // Create the ghostty app.
@@ -100,9 +114,19 @@ extension Ghostty {
 #endif
 
             self.readiness = .ready
+
+            #if os(macOS)
+            syncMidiRuntime()
+            #endif
         }
 
         deinit {
+            midi?.stop()
+            midi = nil
+            #if os(macOS)
+            midiRuntimeState = .off
+            #endif
+
             // This will force the didSet callbacks to run which free.
             self.app = nil
 
@@ -117,6 +141,34 @@ extension Ghostty {
             guard let app = self.app else { return }
             ghostty_app_tick(app)
         }
+
+        #if os(macOS)
+        private func syncMidiRuntime() {
+            let desiredState: MidiRuntimeState = if config.glossolaliaMidi {
+                .on(scale: config.glossolaliaMidiScale)
+            } else {
+                .off
+            }
+
+            guard desiredState != midiRuntimeState else { return }
+
+            switch desiredState {
+            case .off:
+                midi?.stop()
+                midi = nil
+                Ghostty.logger.info("MIDI engine stopped")
+
+            case .on(let scale):
+                midi?.stop()
+                let midiEngine = GlossaliaMIDI(scale: scale)
+                midiEngine.start()
+                midi = midiEngine
+                Ghostty.logger.info("MIDI engine started scale='\(scale.rawValue)'")
+            }
+
+            midiRuntimeState = desiredState
+        }
+        #endif
 
         static func openConfig() {
             let str = Ghostty.AllocatedString(ghostty_config_open_path()).string
@@ -319,6 +371,11 @@ extension Ghostty {
             NotificationCenter.default.post(name: Notification.ghosttyCloseSurface, object: surface, userInfo: [
                 "process_alive": processAlive,
             ])
+        }
+
+        static func promptBackgroundVideoURL(_ userdata: UnsafeMutableRawPointer?) {
+            let surface = self.surfaceUserdata(from: userdata)
+            surface.promptBackgroundVideoUrl()
         }
 
         static func readClipboard(_ userdata: UnsafeMutableRawPointer?, location: ghostty_clipboard_e, state: UnsafeMutableRawPointer?) {
@@ -2126,6 +2183,9 @@ extension Ghostty {
                     guard let app_ud = ghostty_app_userdata(app) else { return }
                     let ghostty = Unmanaged<App>.fromOpaque(app_ud).takeUnretainedValue()
                     ghostty.config = config
+                    #if os(macOS)
+                    ghostty.syncMidiRuntime()
+                    #endif
 
                     return
 

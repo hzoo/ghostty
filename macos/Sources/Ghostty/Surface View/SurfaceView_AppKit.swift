@@ -604,6 +604,37 @@ extension Ghostty {
             }
         }
 
+        /// Prompt for a background video URL.
+        func promptBackgroundVideoUrl() {
+            guard let surface else { return }
+
+            let alert = NSAlert()
+            alert.messageText = "Set Background Video URL"
+            alert.informativeText = "Enter a URL (YouTube or direct video). Leave blank to clear."
+            alert.alertStyle = .informational
+
+            let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
+            textField.placeholderString = "https://..."
+            alert.accessoryView = textField
+
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Cancel")
+            alert.window.initialFirstResponder = textField
+
+            let completionHandler: (NSApplication.ModalResponse) -> Void = { response in
+                guard response == .alertFirstButtonReturn else { return }
+                textField.stringValue.withCString { cURL in
+                    ghostty_surface_set_background_video_url(surface, cURL)
+                }
+            }
+
+            if let window {
+                alert.beginSheetModal(for: window, completionHandler: completionHandler)
+            } else {
+                completionHandler(alert.runModal())
+            }
+        }
+
         func setTitle(_ title: String) {
             // This fixes an issue where very quick changes to the title could
             // cause an unpleasant flickering. We set a timer so that we can
@@ -1103,6 +1134,14 @@ extension Ghostty {
             }
 
             let action = event.isARepeat ? GHOSTTY_ACTION_REPEAT : GHOSTTY_ACTION_PRESS
+
+            // MIDI note emission
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                appDelegate.ghostty.midi?.handleKeyDown(
+                    keyCode: event.keyCode,
+                    modifiers: event.modifierFlags
+                )
+            }
 
             // By setting this to non-nil, we note that we're in a keyDown event. From here,
             // we call interpretKeyEvents so that we can handle complex input such as Korean

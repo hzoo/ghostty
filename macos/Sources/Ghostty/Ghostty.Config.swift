@@ -906,4 +906,23 @@ extension Ghostty.Config {
         static let bell = NotifyOnCommandFinishAction(rawValue: 1 << 0)
         static let notify = NotifyOnCommandFinishAction(rawValue: 1 << 1)
     }
+
+    // MARK: - Glossolalia MIDI
+
+    var glossolaliaMidi: Bool {
+        guard let config = self.config else { return false }
+        var v = false
+        let key = "glossolalia-midi"
+        _ = ghostty_config_get(config, &v, key, UInt(key.lengthOfBytes(using: .utf8)))
+        return v
+    }
+
+    var glossolaliaMidiScale: MIDIScale {
+        guard let config = self.config else { return .pentatonic }
+        var v: UnsafePointer<Int8>? = nil
+        let key = "glossolalia-midi-scale"
+        guard ghostty_config_get(config, &v, key, UInt(key.lengthOfBytes(using: .utf8))) else { return .pentatonic }
+        guard let ptr = v else { return .pentatonic }
+        return MIDIScale(rawValue: String(cString: ptr)) ?? .pentatonic
+    }
 }
