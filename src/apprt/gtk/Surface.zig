@@ -101,3 +101,8 @@ pub fn defaultTermioEnv(self: *Self) !std.process.EnvMap {
 pub fn redrawInspector(self: *Self) void {
     self.surface.redrawInspector();
 }
+
+pub fn promptBackgroundVideoUrl(self: *Self) bool {
+    self.surface.promptBackgroundVideoUrl();
+    return true;
+}
