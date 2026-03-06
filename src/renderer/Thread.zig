@@ -114,7 +114,10 @@ pub const DerivedConfig = struct {
 
     pub fn init(config: *const configpkg.Config) DerivedConfig {
         return .{
-            .custom_shader_animation = config.@"custom-shader-animation",
+            .custom_shader_animation = if (config.glossolalia.isEnabled())
+                .always
+            else
+                config.@"custom-shader-animation",
         };
     }
 };
@@ -334,7 +337,12 @@ fn syncDrawTimer(self: *Thread) void {
 }
 
 /// Drain the mailbox.
-fn drainMailbox(self: *Thread) !void {
+const DrainResult = struct {
+    needs_update_frame: bool = false,
+    needs_draw: bool = false,
+};
+
+fn drainMailbox(self: *Thread) !DrainResult {
     // There's probably a more elegant way to do this...
     //
     // This is effectively an @autoreleasepool{} block, which we need in
@@ -345,8 +353,12 @@ fn drainMailbox(self: *Thread) !void {
         void;
     defer if (builtin.os.tag.isDarwin()) pool.deinit();
 
+    var result: DrainResult = .{};
     while (self.mailbox.pop()) |message| {
-        log.debug("mailbox message={}", .{message});
+        switch (message) {
+            .background_video_frame => {},
+            else => log.debug("mailbox message={}", .{message}),
+        }
         switch (message) {
             .crash => @panic("crash request, crashing intentionally"),
 
@@ -360,13 +372,9 @@ fn drainMailbox(self: *Thread) !void {
                 // Visibility affects our QoS class
                 self.setQosClass();
 
-                // If we became visible then we immediately trigger a draw.
-                // We don't need to update frame data because that should
-                // still be happening.
-                if (v) self.drawFrame(false);
-
                 // Notify the renderer so it can update any state.
                 self.renderer.setVisible(v);
+                result.needs_update_frame = true;
 
                 // Note that we're explicitly today not stopping any
                 // cursor timers, draw timers, etc. These things have very
@@ -391,6 +399,7 @@ fn drainMailbox(self: *Thread) !void {
 
                 // We always resync our draw timer (may disable it)
                 self.syncDrawTimer();
+                result.needs_update_frame = true;
 
                 if (!v) {
                     // If we're not focused, then we stop the cursor blink
@@ -436,14 +445,19 @@ fn drainMailbox(self: *Thread) !void {
                         cursorTimerCallback,
                     );
                 }
+                result.needs_update_frame = true;
             },
 
             .font_grid => |grid| {
                 self.renderer.setFontGrid(grid.grid);
                 grid.set.deref(grid.old_key);
+                result.needs_update_frame = true;
             },
 
-            .resize => |v| self.renderer.setScreenSize(v),
+            .resize => |v| {
+                self.renderer.setScreenSize(v);
+                result.needs_update_frame = true;
+            },
 
             .change_config => |config| {
                 defer config.alloc.destroy(config.thread);
@@ -454,6 +468,7 @@ fn drainMailbox(self: *Thread) !void {
                 // Stop and start the draw timer to capture the new
                 // hasAnimations value.
                 self.syncDrawTimer();
+                result.needs_update_frame = true;
             },
 
             .search_viewport_matches => |v| {
@@ -462,6 +477,7 @@ fn drainMailbox(self: *Thread) !void {
                 if (self.renderer.search_matches) |*m| m.arena.deinit();
                 self.renderer.search_matches = v;
                 self.renderer.search_matches_dirty = true;
+                result.needs_update_frame = true;
             },
 
             .search_selected_match => |v| {
@@ -470,10 +486,12 @@ fn drainMailbox(self: *Thread) !void {
                 if (self.renderer.search_selected_match) |*m| m.arena.deinit();
                 self.renderer.search_selected_match = v;
                 self.renderer.search_matches_dirty = true;
+                result.needs_update_frame = true;
             },
 
             .inspector => |v| {
                 self.flags.has_inspector = v;
+                result.needs_update_frame = true;
             },
 
             .macos_display_id => |v| {
@@ -481,8 +499,19 @@ fn drainMailbox(self: *Thread) !void {
                     try self.renderer.setMacOSDisplayID(v);
                 }
             },
+
+            .background_video_frame => |frame| {
+                self.renderer.setBackgroundVideoFrame(frame);
+                result.needs_draw = true;
+            },
+
+            .background_video_clear => {
+                self.renderer.clearBackgroundVideo();
+                result.needs_draw = true;
+            },
         }
     }
+    return result;
 }
 
 fn changeConfig(self: *Thread, config: *const DerivedConfig) !void {
@@ -525,11 +554,22 @@ fn wakeupCallback(
 
     // When we wake up, we check the mailbox. Mailbox producers should
     // wake up our thread after publishing.
-    t.drainMailbox() catch |err|
+    const drained = t.drainMailbox() catch |err| drained: {
         log.err("error draining mailbox err={}", .{err});
+        break :drained DrainResult{};
+    };
 
-    // Render immediately
-    _ = renderCallback(t, undefined, undefined, {});
+    if (drained.needs_update_frame) {
+        // Render immediately.
+        _ = renderCallback(t, undefined, undefined, {});
+    } else if (drained.needs_draw) {
+        // Draw immediately without rebuilding terminal state.
+        t.drawFrame(false);
+    } else {
+        // Wakeups from terminal/IO activity often have no renderer mailbox
+        // messages, but they still require a frame rebuild.
+        _ = renderCallback(t, undefined, undefined, {});
+    }
 
     // The below is not used anymore but if we ever want to introduce
     // a configuration to introduce a delay to coalesce renders, we can

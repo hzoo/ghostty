@@ -21,6 +21,7 @@ const Overlay = @import("Overlay.zig");
 const imagepkg = @import("image.zig");
 const ImageState = imagepkg.State;
 const shadertoy = @import("shadertoy.zig");
+const glossolalia = @import("glossolalia.zig");
 const assert = @import("../quirks.zig").inlineAssert;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -158,6 +159,9 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
         /// Custom shader uniform values.
         custom_shader_uniforms: shadertoy.Uniforms,
 
+        /// Optional glossolalia audio-reactive state.
+        glossolalia_state: ?glossolalia.State,
+
         /// Timestamp we rendered out first frame.
         ///
         /// This is used when updating custom shader uniforms.
@@ -178,6 +182,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
         /// Background image, if we have one.
         bg_image: ?imagepkg.Image = null,
+        /// True if background video is overriding config background image.
+        bg_video_active: bool = false,
         /// Set whenever the background image changes, signalling
         /// that the new background image needs to be uploaded to
         /// the GPU.
@@ -421,9 +427,10 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 api: GraphicsAPI,
                 width: usize,
                 height: usize,
+                has_glossolalia: bool,
             ) !void {
                 if (self.custom_shader_state) |*state| {
-                    try state.resize(api, width, height);
+                    try state.resize(api, width, height, has_glossolalia);
                 }
                 const target = try api.initTarget(width, height);
                 self.target.deinit();
@@ -438,6 +445,10 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             /// between when multiple custom shaders are defined.
             front_texture: Texture,
             back_texture: Texture,
+            /// Mask texture for glyph-only effects.
+            mask_texture: Texture,
+            /// Background-only texture (no text).
+            background_texture: Texture,
 
             /// Shadertoy uses a sampler for accessing the various channel
             /// textures. In Metal, we need to explicitly create these since
@@ -482,6 +493,20 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     null,
                 );
                 errdefer back_texture.deinit();
+                const mask_texture = try Texture.init(
+                    api.textureOptions(),
+                    1,
+                    1,
+                    null,
+                );
+                errdefer mask_texture.deinit();
+                const background_texture = try Texture.init(
+                    api.textureOptions(),
+                    1,
+                    1,
+                    null,
+                );
+                errdefer background_texture.deinit();
 
                 const sampler = try Sampler.init(api.samplerOptions());
                 errdefer sampler.deinit();
@@ -489,6 +514,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 return .{
                     .front_texture = front_texture,
                     .back_texture = back_texture,
+                    .mask_texture = mask_texture,
+                    .background_texture = background_texture,
                     .sampler = sampler,
                     .uniforms = uniforms,
                 };
@@ -497,6 +524,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             pub fn deinit(self: *CustomShaderState) void {
                 self.front_texture.deinit();
                 self.back_texture.deinit();
+                self.mask_texture.deinit();
+                self.background_texture.deinit();
                 self.sampler.deinit();
                 self.uniforms.deinit();
             }
@@ -506,6 +535,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 api: GraphicsAPI,
                 width: usize,
                 height: usize,
+                has_glossolalia: bool,
             ) !void {
                 const front_texture = try Texture.init(
                     api.textureOptions(),
@@ -524,9 +554,29 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
                 self.front_texture.deinit();
                 self.back_texture.deinit();
-
                 self.front_texture = front_texture;
                 self.back_texture = back_texture;
+
+                if (has_glossolalia) {
+                    const mask_texture = try Texture.init(
+                        api.textureOptions(),
+                        @intCast(width),
+                        @intCast(height),
+                        null,
+                    );
+                    errdefer mask_texture.deinit();
+                    const background_texture = try Texture.init(
+                        api.textureOptions(),
+                        @intCast(width),
+                        @intCast(height),
+                        null,
+                    );
+
+                    self.mask_texture.deinit();
+                    self.background_texture.deinit();
+                    self.mask_texture = mask_texture;
+                    self.background_texture = background_texture;
+                }
             }
         };
 
@@ -570,6 +620,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             blending: configpkg.Config.AlphaBlending,
             background_blur: configpkg.Config.BackgroundBlur,
             scroll_to_bottom_on_output: bool,
+            glossolalia_config: glossolalia.State.Config,
 
             pub fn init(
                 alloc_gpa: Allocator,
@@ -644,6 +695,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     .blending = config.@"alpha-blending",
                     .background_blur = config.@"background-blur",
                     .scroll_to_bottom_on_output = config.@"scroll-to-bottom".output,
+                    .glossolalia_config = glossolalia.State.Config.fromConfig(config),
                     .arena = arena,
                 };
             }
@@ -662,7 +714,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             var api = try GraphicsAPI.init(alloc, options);
             errdefer api.deinit();
 
-            const has_custom_shaders = options.config.custom_shaders.value.items.len > 0;
+            const has_custom_shaders =
+                options.config.custom_shaders.value.items.len > 0 or options.config.glossolalia_config.enabled;
 
             // Prepare our swap chain
             var swap_chain = try SwapChain.init(
@@ -697,6 +750,11 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 else => null,
             };
             errdefer if (display_link) |v| v.release();
+
+            const gloss_state: ?glossolalia.State = if (options.config.glossolalia_config.enabled)
+                glossolalia.State.init(alloc, options.config.glossolalia_config)
+            else
+                null;
 
             var result: Self = .{
                 .alloc = alloc,
@@ -769,7 +827,16 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     .cursor_text = @splat(0),
                     .selection_background_color = @splat(0),
                     .selection_foreground_color = @splat(0),
+                    .audio_spectrum = @splat(@splat(0)),
+                    .cell_size = .{ 0, 0 },
+                    .grid_size = .{ 0, 0 },
+                    .grid_padding = .{ 0, 0 },
+                    .glossolalia = @splat(0),
+                    .glossolalia2 = @splat(0),
+                    .glossolalia3 = @splat(0),
+                    .audio_spectrum_raw = @splat(@splat(0)),
                 },
+                .glossolalia_state = gloss_state,
                 .bg_image_buffer = undefined,
 
                 // Fonts
@@ -803,6 +870,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             if (self.search_selected_match) |*m| m.arena.deinit();
             if (self.search_matches) |*m| m.arena.deinit();
             self.swap_chain.deinit();
+            if (self.glossolalia_state) |*g| g.deinit();
 
             if (DisplayLink != void) {
                 if (self.display_link) |display_link| {
@@ -839,7 +907,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             const arena_alloc = arena.allocator();
 
             // Load our custom shaders
-            const custom_shaders: []const [:0]const u8 = shadertoy.loadFromFiles(
+            const file_custom_shaders: []const [:0]const u8 = shadertoy.loadFromFiles(
                 arena_alloc,
                 self.config.custom_shaders,
                 GraphicsAPI.custom_shader_target,
@@ -848,6 +916,22 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 break :err &.{};
             };
 
+            var shader_list: std.ArrayList([:0]const u8) = .empty;
+            defer shader_list.deinit(arena_alloc);
+            try shader_list.appendSlice(arena_alloc, file_custom_shaders);
+
+            if (self.config.glossolalia_config.enabled) {
+                if (glossolalia.State.shaderSource(
+                    arena_alloc,
+                    self.config.glossolalia_config,
+                    GraphicsAPI.custom_shader_target,
+                    GraphicsAPI.custom_shader_y_is_down,
+                )) |shader| {
+                    try shader_list.append(arena_alloc, shader);
+                }
+            }
+
+            const custom_shaders = try shader_list.toOwnedSlice(arena_alloc);
             const has_custom_shaders = custom_shaders.len > 0;
 
             var shaders = try self.api.initShaders(
@@ -1472,6 +1556,11 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 self.size.screen.width != surface_size.width or
                 self.size.screen.height != surface_size.height;
 
+            // During a synchronous resize draw (e.g. window maximize),
+            // skip custom shader work to avoid blocking the main thread
+            // with extra GPU passes and texture reallocation.
+            const skip_custom_shaders = sync and size_changed;
+
             // Conditions under which we need to draw the frame, otherwise we
             // don't need to since the previous frame should be identical.
             const needs_redraw =
@@ -1514,6 +1603,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                         self.api,
                         surface_size.width,
                         surface_size.height,
+                        self.glossolalia_state != null,
                     );
                 }
             } else if (frame.custom_shader_state) |*state| {
@@ -1531,6 +1621,32 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 self.updateScreenSizeUniforms();
             }
 
+            // Resize custom shader textures if needed. Checked independently
+            // of the target resize because sync resize skips custom shader
+            // work but still resizes the target, leaving stale textures on
+            // that swap chain frame.
+            if (frame.custom_shader_state) |*state| {
+                const gloss_active = self.glossolalia_state != null;
+                const needs_back_resize =
+                    state.back_texture.width != self.size.screen.width or
+                    state.back_texture.height != self.size.screen.height;
+                const needs_mask_resize = gloss_active and
+                    (state.mask_texture.width != self.size.screen.width or
+                        state.mask_texture.height != self.size.screen.height);
+                const needs_background_resize = gloss_active and
+                    (state.background_texture.width != self.size.screen.width or
+                        state.background_texture.height != self.size.screen.height);
+
+                if (needs_back_resize or needs_mask_resize or needs_background_resize) {
+                    try state.resize(
+                        self.api,
+                        self.size.screen.width,
+                        self.size.screen.height,
+                        gloss_active,
+                    );
+                }
+            }
+
             // If this frame's target isn't the correct size, or the target
             // config has changed (such as when the blending mode changes),
             // remove it and replace it with a new one with the right values.
@@ -1538,11 +1654,9 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 frame.target.height != self.size.screen.height or
                 frame.target_config_modified != self.target_config_modified)
             {
-                try frame.resize(
-                    self.api,
-                    self.size.screen.width,
-                    self.size.screen.height,
-                );
+                const target = try self.api.initTarget(self.size.screen.width, self.size.screen.height);
+                frame.target.deinit();
+                frame.target = target;
                 frame.target_config_modified = self.target_config_modified;
             }
 
@@ -1591,8 +1705,11 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
             {
                 var pass = frame_ctx.renderPass(&.{.{
-                    .target = if (frame.custom_shader_state) |state|
-                        .{ .texture = state.back_texture }
+                    .target = if (!skip_custom_shaders)
+                        if (frame.custom_shader_state) |state|
+                            .{ .texture = state.back_texture }
+                        else
+                            .{ .target = frame.target }
                     else
                         .{ .target = frame.target },
                     .clear_color = .{ 0.0, 0.0, 0.0, 0.0 },
@@ -1689,33 +1806,119 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 );
             }
 
+            // Build background-only + glyph mask for glossolalia shaders.
+            // Only run these extra passes when glossolalia is active — plain
+            // custom shaders don't need them and they cost two full-screen
+            // render passes per frame.
+            if (!skip_custom_shaders and self.glossolalia_state != null) {
+                if (frame.custom_shader_state) |*state| {
+                    // Each pass needs its own scope so the encoder completes
+                    // before the next one begins (Metal forbids concurrent
+                    // encoders on a single command buffer).
+                    {
+                        var background_pass = frame_ctx.renderPass(&.{.{
+                            .target = .{ .texture = state.background_texture },
+                            .clear_color = .{ 0.0, 0.0, 0.0, 0.0 },
+                        }});
+                        defer background_pass.complete();
+
+                        if (self.bg_image) |img| switch (img) {
+                            .ready => |texture| background_pass.step(.{
+                                .pipeline = self.shaders.pipelines.bg_image,
+                                .uniforms = frame.uniforms.buffer,
+                                .buffers = &.{frame.bg_image_buffer.buffer},
+                                .textures = &.{texture},
+                                .draw = .{ .type = .triangle, .vertex_count = 3 },
+                            }),
+                            else => {},
+                        } else {
+                            background_pass.step(.{
+                                .pipeline = self.shaders.pipelines.bg_color,
+                                .uniforms = frame.uniforms.buffer,
+                                .buffers = &.{ null, frame.cells_bg.buffer },
+                                .draw = .{ .type = .triangle, .vertex_count = 3 },
+                            });
+                        }
+
+                        self.images.draw(
+                            &self.api,
+                            self.shaders.pipelines.image,
+                            &background_pass,
+                            .kitty_below_bg,
+                        );
+
+                        background_pass.step(.{
+                            .pipeline = self.shaders.pipelines.cell_bg,
+                            .uniforms = frame.uniforms.buffer,
+                            .buffers = &.{ null, frame.cells_bg.buffer },
+                            .draw = .{ .type = .triangle, .vertex_count = 3 },
+                        });
+
+                        self.images.draw(
+                            &self.api,
+                            self.shaders.pipelines.image,
+                            &background_pass,
+                            .kitty_below_text,
+                        );
+                    }
+
+                    {
+                        var mask_pass = frame_ctx.renderPass(&.{.{
+                            .target = .{ .texture = state.mask_texture },
+                            .clear_color = .{ 0.0, 0.0, 0.0, 0.0 },
+                        }});
+                        defer mask_pass.complete();
+
+                        mask_pass.step(.{
+                            .pipeline = self.shaders.pipelines.cell_text_mask,
+                            .uniforms = frame.uniforms.buffer,
+                            .buffers = &.{
+                                frame.cells.buffer,
+                                frame.cells_bg.buffer,
+                            },
+                            .textures = &.{
+                                frame.grayscale,
+                                frame.color,
+                            },
+                            .draw = .{
+                                .type = .triangle_strip,
+                                .vertex_count = 4,
+                                .instance_count = fg_count,
+                            },
+                        });
+                    }
+                }
+            }
+
             // If we have custom shaders, then we render them.
-            if (frame.custom_shader_state) |*state| {
-                // Sync our uniforms.
-                try state.uniforms.sync(&.{self.custom_shader_uniforms});
+            if (!skip_custom_shaders) {
+                if (frame.custom_shader_state) |*state| {
+                    // Sync our uniforms.
+                    try state.uniforms.sync(&.{self.custom_shader_uniforms});
 
-                for (self.shaders.post_pipelines, 0..) |pipeline, i| {
-                    defer state.swap();
+                    for (self.shaders.post_pipelines, 0..) |pipeline, i| {
+                        defer state.swap();
 
-                    var pass = frame_ctx.renderPass(&.{.{
-                        .target = if (i < self.shaders.post_pipelines.len - 1)
-                            .{ .texture = state.front_texture }
-                        else
-                            .{ .target = frame.target },
-                        .clear_color = .{ 0.0, 0.0, 0.0, 0.0 },
-                    }});
-                    defer pass.complete();
+                        var pass = frame_ctx.renderPass(&.{.{
+                            .target = if (i < self.shaders.post_pipelines.len - 1)
+                                .{ .texture = state.front_texture }
+                            else
+                                .{ .target = frame.target },
+                            .clear_color = .{ 0.0, 0.0, 0.0, 0.0 },
+                        }});
+                        defer pass.complete();
 
-                    pass.step(.{
-                        .pipeline = pipeline,
-                        .uniforms = state.uniforms.buffer,
-                        .textures = &.{state.back_texture},
-                        .samplers = &.{state.sampler},
-                        .draw = .{
-                            .type = .triangle,
-                            .vertex_count = 3,
-                        },
-                    });
+                        pass.step(.{
+                            .pipeline = pipeline,
+                            .uniforms = state.uniforms.buffer,
+                            .textures = &.{ state.back_texture, state.mask_texture, state.background_texture },
+                            .samplers = &.{ state.sampler, state.sampler, state.sampler },
+                            .draw = .{
+                                .type = .triangle,
+                                .vertex_count = 3,
+                            },
+                        });
+                    }
                 }
             }
         }
@@ -1886,11 +2089,28 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             const old_blending = self.config.blending;
             const custom_shaders_changed = !self.config.custom_shaders.equal(config.custom_shaders);
 
+            const glossolalia_shaders_changed =
+                self.config.glossolalia_config.enabled != config.glossolalia_config.enabled;
+
             self.config.deinit();
             self.config = config.*;
 
+            // Update glossolalia state to match new config.
+            if (config.glossolalia_config.enabled) {
+                if (self.glossolalia_state) |*g| {
+                    g.updateConfig(self.alloc, config.glossolalia_config);
+                } else {
+                    self.glossolalia_state = glossolalia.State.init(self.alloc, config.glossolalia_config);
+                }
+            } else {
+                if (self.glossolalia_state) |*g| {
+                    g.deinit();
+                    self.glossolalia_state = null;
+                }
+            }
+
             // If our background image path changed, prepare the new bg image.
-            if (bg_image_changed) try self.prepBackgroundImage();
+            if (bg_image_changed and !self.bg_video_active) try self.prepBackgroundImage();
 
             // If our background image config changed, update the vertex buffer.
             if (bg_image_config_changed) self.updateBgImageBuffer();
@@ -1910,8 +2130,51 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 self.target_config_modified +%= 1;
             }
 
-            if (custom_shaders_changed) {
+            if (custom_shaders_changed or glossolalia_shaders_changed) {
                 self.reinitialize_shaders = true;
+            }
+        }
+
+        /// Provide a raw RGBA frame for the background video.
+        pub fn setBackgroundVideoFrame(
+            self: *Self,
+            frame: renderer.Message.BackgroundVideoFrame,
+        ) void {
+            self.draw_mutex.lock();
+            defer self.draw_mutex.unlock();
+
+            const image: imagepkg.Image = .{ .pending = .{
+                .width = frame.width,
+                .height = frame.height,
+                .pixel_format = .rgba,
+                .data = frame.data.ptr,
+            } };
+
+            if (self.bg_image) |*img| {
+                img.markForReplace(self.alloc, image);
+            } else {
+                self.bg_image = image;
+            }
+
+            self.bg_video_active = true;
+        }
+
+        /// Clear any active background video and restore config background image.
+        pub fn clearBackgroundVideo(self: *Self) void {
+            self.draw_mutex.lock();
+            defer self.draw_mutex.unlock();
+
+            self.bg_video_active = false;
+
+            if (self.config.bg_image != null) {
+                self.prepBackgroundImage() catch |err| {
+                    log.warn("error restoring background image err={}", .{err});
+                };
+                return;
+            }
+
+            if (self.bg_image) |*img| {
+                img.markForUnload();
             }
         }
 
@@ -2124,6 +2387,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             const screen = self.size.screen;
             const padding = self.size.padding;
             const cell = self.size.cell;
+            const grid = self.size.grid();
 
             uniforms.resolution = .{
                 @floatFromInt(screen.width),
@@ -2136,6 +2400,38 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 1,
                 0,
             };
+            uniforms.channel_resolution[1] = .{
+                @floatFromInt(screen.width),
+                @floatFromInt(screen.height),
+                1,
+                0,
+            };
+            uniforms.channel_resolution[2] = .{
+                @floatFromInt(screen.width),
+                @floatFromInt(screen.height),
+                1,
+                0,
+            };
+
+            uniforms.cell_size = .{
+                @floatFromInt(cell.width),
+                @floatFromInt(cell.height),
+            };
+            uniforms.grid_size = .{
+                @floatFromInt(grid.columns),
+                @floatFromInt(grid.rows),
+            };
+            uniforms.grid_padding = if (GraphicsAPI.custom_shader_y_is_down) .{
+                @floatFromInt(padding.left),
+                @floatFromInt(padding.top),
+            } else .{
+                @floatFromInt(padding.left),
+                @floatFromInt(padding.bottom),
+            };
+
+            if (self.glossolalia_state) |*gloss| {
+                gloss.updateUniforms(uniforms);
+            }
 
             if (self.cells.getCursorGlyph()) |cursor| {
                 const cursor_width: f32 = @floatFromInt(cursor.glyph_size[0]);

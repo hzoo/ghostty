@@ -35,6 +35,7 @@ const input = @import("input.zig");
 const App = @import("App.zig");
 const internal_os = @import("os/main.zig");
 const inspectorpkg = @import("inspector/main.zig");
+const videopkg = @import("video/BackgroundVideo.zig");
 const SurfaceMouse = @import("surface_mouse.zig");
 
 const log = std.log.scoped(.surface);
@@ -122,6 +123,8 @@ io_thr: std.Thread,
 
 /// Terminal inspector
 inspector: ?*inspectorpkg.Inspector = null,
+/// Background video playback state.
+background_video: ?*videopkg.BackgroundVideo = null,
 
 /// All our sizing information.
 size: rendererpkg.Size,
@@ -777,6 +780,12 @@ pub fn deinit(self: *Surface) void {
     // Stop search thread
     if (self.search) |*s| s.deinit();
 
+    if (self.background_video) |v| {
+        v.deinit();
+        self.alloc.destroy(v);
+        self.background_video = null;
+    }
+
     // Stop rendering thread
     {
         self.renderer_thread.stop.notify() catch |err|
@@ -1055,6 +1064,20 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
                 .pwd,
                 .{ .pwd = str },
             );
+        },
+
+        .background_video_url => |w| {
+            defer w.deinit();
+
+            const url = w.slice();
+            if (url.len == 0) {
+                self.stopBackgroundVideo();
+                return;
+            }
+
+            self.setBackgroundVideoUrl(url) catch |err| {
+                log.warn("error setting background video url err={}", .{err});
+            };
         },
 
         .close => self.close(),
@@ -2417,6 +2440,107 @@ pub fn setFontSize(self: *Surface, size: font.face.DesiredSize) !void {
 /// practical.
 fn queueRender(self: *Surface) !void {
     try self.renderer_thread.wakeup.notify();
+}
+
+fn ensureBackgroundVideo(self: *Surface) !*videopkg.BackgroundVideo {
+    if (self.background_video) |v| return v;
+    const v = try self.alloc.create(videopkg.BackgroundVideo);
+    v.* = videopkg.BackgroundVideo.init(self.alloc, self);
+    self.background_video = v;
+    return v;
+}
+
+pub fn setBackgroundVideoUrl(self: *Surface, url: []const u8) !void {
+    const v = try self.ensureBackgroundVideo();
+    try v.setUrl(url);
+}
+
+pub fn clearBackgroundVideo(self: *Surface) void {
+    if (self.background_video) |v| {
+        v.clearFrame();
+        return;
+    }
+
+    _ = self.renderer_thread.mailbox.push(
+        .{ .background_video_clear = {} },
+        .{ .instant = {} },
+    );
+    self.renderer_thread.wakeup.notify() catch {};
+}
+
+pub fn toggleBackgroundVideoVisibility(self: *Surface) bool {
+    if (self.background_video) |v| return v.toggleVisibility();
+    return false;
+}
+
+pub fn hasBackgroundVideo(self: *const Surface) bool {
+    if (self.background_video) |v| return v.hasActivePlayback();
+    return false;
+}
+
+pub fn isBackgroundVideoPaused(self: *const Surface) bool {
+    if (self.background_video) |v| return v.isPaused();
+    return false;
+}
+
+pub fn isBackgroundVideoSeekSupported(self: *const Surface) bool {
+    if (self.background_video) |v| return v.isSeekSupported();
+    return false;
+}
+
+pub fn setBackgroundVideoPaused(self: *Surface, paused: bool) bool {
+    if (self.background_video) |v| return v.setPaused(paused);
+    return false;
+}
+
+pub fn seekBackgroundVideo(self: *Surface, seconds: i32) bool {
+    if (self.background_video) |v| return v.seekRelative(seconds);
+    return false;
+}
+
+pub fn backgroundMediaQueueCount(self: *Surface) u32 {
+    if (self.background_video) |v| return v.backgroundMediaQueueCount();
+    return 0;
+}
+
+/// Returns zero-based queue index, or -1 when there is no active track.
+pub fn backgroundMediaQueueIndex(self: *Surface) i32 {
+    if (self.background_video) |v| return v.backgroundMediaQueueIndex();
+    return -1;
+}
+
+pub fn dupBackgroundMediaTitle(self: *Surface) ?[]u8 {
+    if (self.background_video) |v| return v.dupCurrentMetadataTitle();
+    return null;
+}
+
+pub fn dupBackgroundMediaArtist(self: *Surface) ?[]u8 {
+    if (self.background_video) |v| return v.dupCurrentMetadataArtist();
+    return null;
+}
+
+pub fn dupBackgroundMediaUrl(self: *Surface) ?[]u8 {
+    if (self.background_video) |v| return v.dupCurrentTrackUrl();
+    return null;
+}
+
+pub fn nextBackgroundMediaTrack(self: *Surface) bool {
+    if (self.background_video) |v| return v.nextTrack();
+    return false;
+}
+
+pub fn previousBackgroundMediaTrack(self: *Surface) bool {
+    if (self.background_video) |v| return v.previousTrack();
+    return false;
+}
+
+pub fn stopBackgroundVideo(self: *Surface) void {
+    if (self.background_video) |v| {
+        v.clearAsync();
+        return;
+    }
+
+    self.clearBackgroundVideo();
 }
 
 pub fn sizeCallback(self: *Surface, size: apprt.SurfaceSize) !void {
@@ -5481,6 +5605,18 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             .prompt_title,
             .tab,
         ),
+
+        .prompt_background_video_url => return self.rt_surface.promptBackgroundVideoUrl(),
+
+        .clear_background_video => {
+            return self.toggleBackgroundVideoVisibility();
+        },
+
+        .stop_background_video => {
+            const had_background_video = self.background_video != null;
+            self.stopBackgroundVideo();
+            return had_background_video;
+        },
 
         .clear_screen => {
             // This is a duplicate of some of the logic in termio.clearScreen

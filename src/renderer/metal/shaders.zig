@@ -28,6 +28,13 @@ const pipeline_descs: []const struct { [:0]const u8, PipelineDescription } =
             .step_fn = .per_instance,
             .blending_enabled = true,
         } },
+        .{ "cell_text_mask", .{
+            .vertex_attributes = CellText,
+            .vertex_fn = "cell_text_vertex",
+            .fragment_fn = "cell_text_mask_fragment",
+            .step_fn = .per_instance,
+            .blending_enabled = true,
+        } },
         .{ "image", .{
             .vertex_attributes = Image,
             .vertex_fn = "image_vertex",

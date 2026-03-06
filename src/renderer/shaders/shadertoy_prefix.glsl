@@ -28,6 +28,14 @@ layout(binding = 1, std140) uniform Globals {
     uniform vec3  iCursorText;
     uniform vec3  iSelectionForegroundColor;
     uniform vec3  iSelectionBackgroundColor;
+    uniform vec4  iAudioSpectrum[16];
+    uniform vec2  iCellSize;
+    uniform vec2  iGridSize;
+    uniform vec2  iGridPadding;
+    uniform vec4  iGlossolalia;
+    uniform vec4  iGlossolalia2;
+    uniform vec4  iGlossolalia3;
+    uniform vec4  iAudioSpectrumRaw[16];
 };
 
 #define CURSORSTYLE_BLOCK        0
@@ -37,6 +45,8 @@ layout(binding = 1, std140) uniform Globals {
 #define CURSORSTYLE_LOCK         4
 
 layout(binding = 0) uniform sampler2D iChannel0;
+layout(binding = 1) uniform sampler2D iChannel1;
+layout(binding = 2) uniform sampler2D iChannel2;
 
 // These are unused currently by Ghostty:
 // layout(binding = 1) uniform sampler2D iChannel1;
