@@ -577,6 +577,17 @@ pub const Action = union(enum) {
     /// and persists across focus changes within the tab.
     prompt_tab_title,
 
+    /// Prompt for a background video URL and start playback.
+    ///
+    /// Leave blank to clear the currently active background video.
+    prompt_background_video_url,
+
+    /// Toggle background video visibility while playback continues.
+    clear_background_video,
+
+    /// Stop playback and clear the currently active background video.
+    stop_background_video,
+
     /// Create a new split in the specified direction.
     ///
     /// Valid arguments:
@@ -1324,6 +1335,9 @@ pub const Action = union(enum) {
             .set_font_size,
             .prompt_surface_title,
             .prompt_tab_title,
+            .prompt_background_video_url,
+            .clear_background_video,
+            .stop_background_video,
             .clear_screen,
             .select_all,
             .scroll_to_top,

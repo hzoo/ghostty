@@ -72,6 +72,11 @@
         .libintl = .{ .path = "./pkg/libintl", .lazy = true },
         .libpng = .{ .path = "./pkg/libpng", .lazy = true },
         .macos = .{ .path = "./pkg/macos", .lazy = true },
+        .miniaudio = .{
+            .url = "https://github.com/mackron/miniaudio/archive/refs/tags/0.11.21.tar.gz",
+            .hash = "N-V-__8AAGQdhQDaoT5eFgzD6NKGhDdJ8pLb4xrncA3zWEp7",
+            .lazy = true,
+        },
         .oniguruma = .{ .path = "./pkg/oniguruma", .lazy = true },
         .opengl = .{ .path = "./pkg/opengl", .lazy = true },
         .sentry = .{ .path = "./pkg/sentry", .lazy = true },

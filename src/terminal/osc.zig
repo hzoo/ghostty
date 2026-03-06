@@ -64,6 +64,11 @@ pub const Command = union(Key) {
         value: [:0]const u8,
     },
 
+    /// OSC 1337. Set the background video URL.
+    background_video_url: struct {
+        value: [:0]const u8,
+    },
+
     /// OSC 22. Set the mouse shape. There doesn't seem to be a standard
     /// naming scheme for cursors but it looks like terminals such as Foot
     /// are moving towards using the W3C CSS cursor names. For OSC parsing,
@@ -174,6 +179,7 @@ pub const Command = union(Key) {
             "semantic_prompt",
             "clipboard_contents",
             "report_pwd",
+            "background_video_url",
             "mouse_shape",
             "color_operation",
             "kitty_color_protocol",
@@ -420,6 +426,7 @@ pub const Parser = struct {
             .invalid,
             .mouse_shape,
             .report_pwd,
+            .background_video_url,
             .semantic_prompt,
             .show_desktop_notification,
             .kitty_text_sizing,

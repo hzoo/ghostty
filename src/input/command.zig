@@ -450,6 +450,20 @@ fn actionCommands(action: Action.Key) []const Command {
             .description = "Prompt for a new title for the current tab.",
         }},
 
+        .prompt_background_video_url => comptime &.{.{
+            .action = .prompt_background_video_url,
+            .title = "Set Background Media URL...",
+            .description = "Prompt for a background media URL to play. Leave blank to stop current background media.",
+        }},
+
+        .clear_background_video => comptime &.{.{
+            .action = .clear_background_video,
+            .title = "Toggle Background Video Visibility",
+            .description = "Hide or show the current background video while playback continues.",
+        }},
+
+        .stop_background_video => comptime &.{},
+
         .new_split => comptime &.{
             .{
                 .action = .{ .new_split = .left },

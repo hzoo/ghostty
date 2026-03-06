@@ -2890,6 +2890,44 @@ keybind: Keybinds = .{},
 /// need KAM, you don't need it.
 @"vt-kam-allowed": bool = false,
 
+/// Enable the glossolalia audio-reactive pipeline. When set, Ghostty captures
+/// audio from the default input device and exposes a 64-band spectrum via the
+/// `iAudioSpectrum` uniform for custom shaders. If no custom shaders are
+/// configured, a built-in glossolalia equalizer shader is injected.
+///
+/// This is currently intended for local experimentation and targets macOS.
+/// Other platforms ignore this setting.
+///
+/// Supported values are:
+///
+///   * `false` - Off.
+///   * `true` - Enabled.
+///   * `debug` - Enabled and shows the spectrum debug box.
+glossolalia: GlossolaliaMode = .@"false",
+
+/// Strength of the glossolalia displacement.
+///
+/// This is a multiplier in units of "cells". A value of `1.0` allows glyphs
+/// to move up by up to one cell height. Values greater than `1.0` allow larger
+/// displacement.
+@"glossolalia-strength": f32 = 2.0,
+
+/// Audio capture device name for glossolalia.
+///
+/// A substring match against available capture device names. If unset,
+/// auto-detects known loopback devices (BlackHole, Loopback, Soundflower).
+/// Falls back to the system default capture device if no match is found.
+@"glossolalia-device": ?[:0]const u8 = null,
+
+/// Enable MIDI note output from keystrokes.
+/// When enabled, Ghostty creates a CoreMIDI virtual source named "Glossolalia"
+/// that emits notes based on physical keyboard position. Connect any
+/// DAW or synth to receive the notes.
+@"glossolalia-midi": bool = false,
+
+/// Musical scale for MIDI keystroke mapping.
+@"glossolalia-midi-scale": GlossolaliaMidiScale = .pentatonic,
+
 /// Custom shaders to run after the default shaders. This is a file path
 /// to a GLSL-syntax shader for all platforms.
 ///
@@ -2999,6 +3037,47 @@ keybind: Keybinds = .{},
 ///
 ///  * `vec3 iSelectionForegroundColor` - Selection foreground color (RGB).
 ///
+///  * `vec4 iAudioSpectrum[16]` - 64-band audio spectrum magnitudes.
+///
+///    Packed as 16 vec4s, low frequencies to high (log-spaced). Index with
+///    `iAudioSpectrum[band / 4][band % 4]`.
+///
+///  * `vec2 iCellSize` - Size of a terminal cell in pixels.
+///
+///  * `vec2 iGridSize` - Grid size in cells, `[columns, rows]`.
+///
+///  * `vec2 iGridPadding` - Pixel offset to the grid origin.
+///
+///  * `vec4 iGlossolalia` - Glossolalia parameters.
+///
+///    `x`: strength in cell units.
+///
+///    `y`: wave frequency (rows per cycle).
+///
+///    `z`: wave speed.
+///
+///    `w`: debug overlay toggle (`0` = off, `1` = on).
+///
+///  * `vec4 iGlossolalia2` - Glossolalia parameters (reserved).
+///
+///    `x`: ripple frequency (columns per cycle).
+///
+///    `y`: color modulation amount.
+///
+///    `z`: raw spectrum debug gain.
+///
+///    `w`: ripple speed.
+///
+///  * `vec4 iGlossolalia3` - Glossolalia band envelopes.
+///
+///    `x`: kick (low bands).
+///
+///    `y`: snare/clap transient (mid bands).
+///
+///    `z`: hat/shaker (high bands).
+///
+///    `w`: air/texture (top bands).
+///
 /// If the shader fails to compile, the shader will be ignored. Any errors
 /// related to shader compilation will not show up as configuration errors
 /// and only show up in the log, since shader compilation happens after
@@ -3009,6 +3088,7 @@ keybind: Keybinds = .{},
 /// will be run in the order they are specified.
 ///
 /// This can be changed at runtime and will affect all open terminals.
+///
 @"custom-shader": RepeatablePath = .{},
 
 /// If `true` (default), the focused terminal surface will run an animation
@@ -5179,6 +5259,29 @@ pub const CustomShaderAnimation = enum(c_int) {
     false,
     true,
     always,
+};
+
+/// Runtime modes for glossolalia.
+pub const GlossolaliaMode = enum {
+    @"false",
+    @"true",
+    debug,
+
+    pub fn isEnabled(self: GlossolaliaMode) bool {
+        return self != .@"false";
+    }
+
+    pub fn isDebug(self: GlossolaliaMode) bool {
+        return self == .debug;
+    }
+};
+
+pub const GlossolaliaMidiScale = enum {
+    pentatonic,
+    major,
+    minor,
+    chromatic,
+    blues,
 };
 
 /// Valid values for macos-non-native-fullscreen
