@@ -131,6 +131,9 @@ class AppDelegate: NSObject,
         }
     }
 
+    /// Native macOS Now Playing bridge for background media controls.
+    private var backgroundMediaNowPlaying: BackgroundMediaNowPlayingController?
+
     /// Manages updates
     let updateController = UpdateController()
     var updateViewModel: UpdateViewModel {
@@ -300,6 +303,10 @@ class AppDelegate: NSObject,
         // Setup signal handlers
         setupSignals()
 
+        backgroundMediaNowPlaying = BackgroundMediaNowPlayingController(
+            surfaceProvider: { [weak self] in self?.focusedSurfaceForBackgroundMedia() },
+        )
+
         switch Ghostty.launchSource {
         case .app:
             // Don't have to do anything.
@@ -412,10 +419,54 @@ class AppDelegate: NSObject,
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // We have no notifications we want to persist after death,
-        // so remove them all now. In the future we may want to be
-        // more selective and only remove surface-targeted notifications.
+        // Force synchronous cleanup of the Ghostty app before the process
+        // exits. ARC teardown of globals is not guaranteed on exit(), so
+        // child processes (mpv, ffmpeg, yt-dlp) may survive otherwise.
+        // The didSet on Ghostty.App.app guards on oldValue being non-nil,
+        // so setting nil twice (here + deinit) is safe — the second is a no-op.
+        ghostty.app = nil
+
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
+
+    private func focusedSurfaceForBackgroundMedia() -> ghostty_surface_t? {
+        var fallback: ghostty_surface_t?
+
+        if let keyWindow = NSApp.keyWindow ?? NSApp.mainWindow,
+           let controller = keyWindow.windowController as? BaseTerminalController,
+           let surface = controller.focusedSurface?.surface {
+            if ghostty_surface_has_background_video(surface) {
+                return surface
+            }
+            fallback = surface
+        }
+
+        for controller in TerminalController.all {
+            guard let surface = controller.focusedSurface?.surface else { continue }
+            if ghostty_surface_has_background_video(surface) {
+                return surface
+            }
+            if fallback == nil {
+                fallback = surface
+            }
+        }
+
+        switch quickTerminalControllerState {
+        case .initialized(let controller):
+            if let surface = controller.focusedSurface?.surface {
+                if ghostty_surface_has_background_video(surface) {
+                    return surface
+                }
+                if fallback == nil {
+                    fallback = surface
+                }
+            }
+
+        case .pendingRestore, .uninitialized:
+            break
+        }
+
+        return fallback
     }
 
     /// This is called when the application is already open and someone double-clicks the icon
