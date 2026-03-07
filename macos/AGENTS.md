@@ -9,6 +9,8 @@
   - Build: `macos/build.nu [--scheme Ghostty] [--configuration Debug] [--action build]`
   - Output: `macos/build/<configuration>/Ghostty.app` (e.g. `macos/build/Debug/Ghostty.app`)
 - Run unit tests directly with `macos/build.nu --action test`
+- For a one-command local standalone app build, prefer
+  `./scripts/build-macos-app.sh` from the repo root.
 
 ## AppleScript
 

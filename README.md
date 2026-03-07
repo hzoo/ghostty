@@ -62,7 +62,28 @@ Extra runtime deps for media URLs:
 - `ffprobe`
 - `mpv`
 
-Build app bundle:
+Build standalone macOS app bundle in one command:
+
+```sh
+./scripts/build-macos-app.sh
+```
+
+Install it into `/Applications`:
+
+```sh
+./scripts/build-macos-app.sh --install
+```
+
+Optional local branding override:
+
+```sh
+APP_NAME=Glossolalia \
+BUNDLE_ID=dev.glossolalia.app \
+EXECUTABLE_NAME=glossolalia \
+./scripts/build-macos-app.sh --install
+```
+
+Legacy upstream-style app bundle build:
 
 ```sh
 zig build install -Demit-macos-app=true -Doptimize=ReleaseFast
