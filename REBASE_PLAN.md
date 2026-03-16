@@ -48,8 +48,7 @@ Already separated by the current staged work:
 - `FORKING.md`
 - `REBASE_PLAN.md`
 - `scripts/fork-sync.sh`
-- `.github/workflows/release-fork-macos.yml`
-- `dist/macos/update_appcast_fork.py`
+- `scripts/release-macos-local.sh`
 - `macos/GlossolaliaBrand.xcconfig`
 - `macos/Ghostty-Info.plist`
 - `macos/Sources/Helpers/ProductBrand.swift`
@@ -212,7 +211,7 @@ Run the smallest useful verification per patch:
 - fork scaffolding: `git diff --check`
 - config/core patches: `zig build test`
 - macOS patches: `xcodebuild -project macos/Ghostty.xcodeproj -target Ghostty -configuration Debug CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build`
-- release plumbing: `python3 -m py_compile dist/macos/update_appcast_fork.py`
+- release plumbing: `bash -n scripts/release-macos-local.sh`
 
 Do not wait until the end of the stack to discover breakage.
 

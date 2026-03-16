@@ -62,7 +62,7 @@ Before committing:
    - fork/docs: `git diff --check`
    - Zig/core: `zig build test`
    - macOS: `xcodebuild -project macos/Ghostty.xcodeproj -target Ghostty -configuration Debug CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build`
-   - release tooling: `python3 -m py_compile dist/macos/update_appcast_fork.py`
+   - release tooling: `bash -n scripts/release-macos-local.sh`
 3. If verification is skipped, say why.
 
 Before landing onto `glossolalia`:

@@ -15,7 +15,7 @@ Keep product identity declarative:
 The intended cutover is:
 
 1. keep local defaults safe in `macos/GlossolaliaBrand.xcconfig`
-2. override shipping identity in `.github/workflows/release-fork-macos.yml`
+2. override shipping identity in `scripts/release-macos-local.sh`
 3. when the brand is final, move those release overrides back into the xcconfig
 
 ## Branch Shape
@@ -118,30 +118,32 @@ Practical cadence:
 - if actively building, do not let `glossolalia` drift for more than about a week
 - if a topic branch lives too long, rebase it or cherry-pick the good commits out
 
-## Release Cutover
+## Release
 
-Fork-owned macOS release automation lives in `.github/workflows/release-fork-macos.yml`.
+macOS release is local and manual.
 
-Required secrets:
+Use `scripts/release-macos-local.sh` from a clean `glossolalia` branch after
+you finish the upstream rebase and conflict repair.
 
-- `MACOS_CERTIFICATE`
-- `MACOS_CERTIFICATE_PWD`
-- `MACOS_CERTIFICATE_NAME`
-- `MACOS_CI_KEYCHAIN_PWD`
-- `APPLE_NOTARIZATION_ISSUER`
-- `APPLE_NOTARIZATION_KEY_ID`
-- `APPLE_NOTARIZATION_KEY`
+Local prerequisites:
 
-Optional update secrets:
-
-- `SPARKLE_PUBLIC_ED_KEY`
-- `SPARKLE_PRIVATE_ED_KEY`
+- Apple signing identity installed in login keychain
+- `xcrun notarytool store-credentials` already set up with a local profile
+- `gh auth status` succeeds for this repo
 
 Before first public release:
 
 - replace the rendered files in `macos/Assets.xcassets/AppIconImage.imageset` if you want a different app icon
-- choose the final release bundle ID and product name in the workflow env
-- if you want in-app updates now, enable GitHub Pages so the generated `appcast.xml` has a stable URL
+- confirm `com.henryzoo.glossolalia` is the bundle ID you want to keep
+- set `CODESIGN_IDENTITY` and `NOTARY_PROFILE` in your shell
+
+Release command:
+
+```sh
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_PROFILE="glossolalia-notary" \
+./scripts/release-macos-local.sh 0.1.0
+```
 
 ## Agent Rules
 

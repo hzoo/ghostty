@@ -74,6 +74,14 @@ Install it into `/Applications`:
 ./scripts/build-macos-app.sh --install
 ```
 
+Manual public release from your local machine:
+
+```sh
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_PROFILE="glossolalia-notary" \
+./scripts/release-macos-local.sh 0.1.0
+```
+
 Optional local branding override:
 
 ```sh

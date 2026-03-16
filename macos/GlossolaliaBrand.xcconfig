@@ -20,7 +20,7 @@ GLOSSOLALIA_SURFACE_UTI = $(GLOSSOLALIA_BUNDLE_ID).surface-id
 GLOSSOLALIA_RELEASE_NOTES_URL_TEMPLATE = https://github.com/hzoo/glossolalia/releases/tag/v{version}
 GLOSSOLALIA_COMPARE_URL_TEMPLATE = https://github.com/hzoo/glossolalia/compare/{current}...{new}
 GLOSSOLALIA_COMMIT_URL_TEMPLATE = https://github.com/hzoo/glossolalia/commit/{new}
-GLOSSOLALIA_UPDATE_STABLE_FEED_URL = https://hzoo.github.io/glossolalia/appcast.xml
-GLOSSOLALIA_UPDATE_TIP_FEED_URL = https://hzoo.github.io/glossolalia/appcast-tip.xml
+GLOSSOLALIA_UPDATE_STABLE_FEED_URL =
+GLOSSOLALIA_UPDATE_TIP_FEED_URL =
 
 GLOSSOLALIA_PERMISSION_SUBJECT = A program running within $(GLOSSOLALIA_APP_DISPLAY_NAME)
